@@ -67,3 +67,4 @@ python GNNSeg.py --test  --repeat 10 --device $gpu_id --dataset $dataset
 #### Use Your Own Dataset
 
 Please add a branch in the `load_dataset` function in datasets.py to load your dataset and create a configuration file in ./config to describe the hyperparameters for the GLASS model.
+# GLASS
