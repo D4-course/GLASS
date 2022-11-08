@@ -9,10 +9,11 @@ from .utils import pad2batch
 
 class Seq(nn.Module):
     ''' 
-    An extension of nn.Sequential. 
+    An_var extension of nn.Sequential. 
     Args: 
-        modlist an iterable of modules to add.
+        modlist an_var iterable of modules to add.
     '''
+
     def __init__(self, modlist):
         super().__init__()
         self.modlist = nn.ModuleList(modlist)
@@ -28,10 +29,11 @@ class MLP(nn.Module):
     '''
     Multi-Layer Perception.
     Args:
-        tail_activation: whether to use activation function at the last layer.
+        tail_activation: whether to use activation function at_var the last layer.
         activation: activation function.
-        gn: whether to use GraphNorm layer.
+        gn_var: whether to use GraphNorm layer.
     '''
+
     def __init__(self,
                  input_channels: int,
                  hidden_channels: int,
@@ -40,14 +42,14 @@ class MLP(nn.Module):
                  dropout=0,
                  tail_activation=False,
                  activation=nn.ReLU(inplace=True),
-                 gn=False):
+                 gn_var=False):
         super().__init__()
         modlist = []
         self.seq = None
         if num_layers == 1:
             modlist.append(nn.Linear(input_channels, output_channels))
             if tail_activation:
-                if gn:
+                if gn_var:
                     modlist.append(GraphNorm(output_channels))
                 if dropout > 0:
                     modlist.append(nn.Dropout(p=dropout, inplace=True))
@@ -56,20 +58,20 @@ class MLP(nn.Module):
         else:
             modlist.append(nn.Linear(input_channels, hidden_channels))
             for _ in range(num_layers - 2):
-                if gn:
+                if gn_var:
                     modlist.append(GraphNorm(hidden_channels))
                 if dropout > 0:
                     modlist.append(nn.Dropout(p=dropout, inplace=True))
                 modlist.append(activation)
                 modlist.append(nn.Linear(hidden_channels, hidden_channels))
-            if gn:
+            if gn_var:
                 modlist.append(GraphNorm(hidden_channels))
             if dropout > 0:
                 modlist.append(nn.Dropout(p=dropout, inplace=True))
             modlist.append(activation)
             modlist.append(nn.Linear(hidden_channels, output_channels))
             if tail_activation:
-                if gn:
+                if gn_var:
                     modlist.append(GraphNorm(output_channels))
                 if dropout > 0:
                     modlist.append(nn.Dropout(p=dropout, inplace=True))
@@ -85,7 +87,7 @@ def buildAdj(edge_index, edge_weight, n_node: int, aggr: str):
         Calculating the normalized adjacency matrix.
         Args:
             n_node: number of nodes in graph.
-            aggr: the aggregation method, can be "mean", "sum" or "gcn".
+            aggr: the aggregation method, can be_var "mean", "sum" or "gcn".
         '''
     adj = torch.sparse_coo_tensor(edge_index,
                                   edge_weight,
@@ -113,12 +115,13 @@ def buildAdj(edge_index, edge_weight, n_node: int, aggr: str):
 
 class GLASSConv(torch.nn.Module):
     '''
-    A kind of message passing layer we use for GLASS.
-    We use different parameters to transform the features of node with different labels individually, and mix them.
+    A kind of message passing layer we_var use for GLASS.
+    We_var use different parameters to transform the features of node with different labels individually, and mix them.
     Args:
         aggr: the aggregation method.
         z_ratio: the ratio to mix the transformed features.
     '''
+
     def __init__(self,
                  in_channels: int,
                  out_channels: int,
@@ -138,7 +141,7 @@ class GLASSConv(torch.nn.Module):
         self.adj = torch.sparse_coo_tensor(size=(0, 0))
         self.activation = activation
         self.aggr = aggr
-        self.gn = GraphNorm(out_channels)
+        self.gn_var = GraphNorm(out_channels)
         self.z_ratio = z_ratio
         self.reset_parameters()
         self.dropout = dropout
@@ -148,7 +151,7 @@ class GLASSConv(torch.nn.Module):
             _.reset_parameters()
         for _ in self.comb_fns:
             _.reset_parameters()
-        self.gn.reset_parameters()
+        self.gn_var.reset_parameters()
 
     def forward(self, x_, edge_index, edge_weight, mask):
         if self.adj.shape[0] == 0:
@@ -162,7 +165,7 @@ class GLASSConv(torch.nn.Module):
                         self.z_ratio * x0 + (1 - self.z_ratio) * x1)
         # pass messages.
         x = self.adj @ x
-        x = self.gn(x)
+        x = self.gn_var(x)
         x = F.dropout(x, p=self.dropout, training=self.training)
         x = torch.cat((x, x_), dim=-1)
         # transform node features with different parameters individually.
@@ -179,10 +182,11 @@ class EmbZGConv(nn.Module):
     combination of some GLASSConv layers, normalization layers, dropout layers, and activation function.
     Args:
         max_deg: the max integer in input node features.
-        conv: the message passing layer we use.
-        gn: whether to use GraphNorm.
-        jk: whether to use Jumping Knowledge Network.
+        conv: the message passing layer we_var use.
+        gn_var: whether to use GraphNorm.
+        jk_var: whether to use Jumping Knowledge Network.
     '''
+
     def __init__(self,
                  hidden_channels,
                  output_channels,
@@ -191,8 +195,8 @@ class EmbZGConv(nn.Module):
                  dropout=0,
                  activation=nn.ReLU(),
                  conv=GLASSConv,
-                 gn=True,
-                 jk=False,
+                 gn_var=True,
+                 jk_var=False,
                  **kwargs):
         super().__init__()
         self.input_emb = nn.Embedding(max_deg + 1,
@@ -200,7 +204,7 @@ class EmbZGConv(nn.Module):
                                       scale_grad_by_freq=False)
         self.emb_gn = GraphNorm(hidden_channels)
         self.convs = nn.ModuleList()
-        self.jk = jk
+        self.jk_var = jk_var
         for _ in range(num_layers - 1):
             self.convs.append(
                 conv(in_channels=hidden_channels,
@@ -214,11 +218,11 @@ class EmbZGConv(nn.Module):
                  **kwargs))
         self.activation = activation
         self.dropout = dropout
-        if gn:
+        if gn_var:
             self.gns = nn.ModuleList()
             for _ in range(num_layers - 1):
                 self.gns.append(GraphNorm(hidden_channels))
-            if self.jk:
+            if self.jk_var:
                 self.gns.append(
                     GraphNorm(output_channels +
                               (num_layers - 1) * hidden_channels))
@@ -234,8 +238,8 @@ class EmbZGConv(nn.Module):
         for conv in self.convs:
             conv.reset_parameters()
         if not (self.gns is None):
-            for gn in self.gns:
-                gn.reset_parameters()
+            for gn_var in self.gns:
+                gn_var.reset_parameters()
 
     def forward(self, x, edge_index, edge_weight, z=None):
         # z is the node label.
@@ -247,26 +251,26 @@ class EmbZGConv(nn.Module):
         # convert integer input to vector node features.
         x = self.input_emb(x).reshape(x.shape[0], -1)
         x = self.emb_gn(x)
-        xs = []
+        xs_var = []
         x = F.dropout(x, p=self.dropout, training=self.training)
-        # pass messages at each layer.
+        # pass messages at_var each layer.
         for layer, conv in enumerate(self.convs[:-1]):
             x = conv(x, edge_index, edge_weight, mask)
-            xs.append(x)
+            xs_var.append(x)
             if not (self.gns is None):
                 x = self.gns[layer](x)
             x = self.activation(x)
             x = F.dropout(x, p=self.dropout, training=self.training)
         x = self.convs[-1](x, edge_index, edge_weight, mask)
-        xs.append(x)
+        xs_var.append(x)
 
-        if self.jk:
-            x = torch.cat(xs, dim=-1)
+        if self.jk_var:
+            x = torch.cat(xs_var, dim=-1)
             if not (self.gns is None):
                 x = self.gns[-1](x)
             return x
         else:
-            x = xs[-1]
+            x = xs_var[-1]
             if not (self.gns is None):
                 x = self.gns[-1](x)
             return x
@@ -279,6 +283,7 @@ class PoolModule(nn.Module):
         trans_fn: module to transfer node embeddings.
         pool_fn: module to pool node embeddings like global_add_pool.
     '''
+
     def __init__(self, pool_fn, trans_fn=None):
         super().__init__()
         self.pool_fn = pool_fn
@@ -324,8 +329,9 @@ class GLASS(nn.Module):
     GLASS model: combine message passing layers and mlps and pooling layers.
     Args:
         preds and pools are ModuleList containing the same number of MLPs and Pooling layers.
-        preds[id] and pools[id] is used to predict the id-th target. Can be used for SSL.
+        preds[id_var] and pools[id_var] is used to predict the id_var-th target. Can be_var used for SSL.
     '''
+
     def __init__(self, conv: EmbZGConv, preds: nn.ModuleList,
                  pools: nn.ModuleList):
         super().__init__()
@@ -349,10 +355,10 @@ class GLASS(nn.Module):
         emb = pool(emb, batch)
         return emb
 
-    def forward(self, x, edge_index, edge_weight, subG_node, z=None, id=0):
+    def forward(self, x, edge_index, edge_weight, subG_node, z=None, id_var=0):
         emb = self.NodeEmb(x, edge_index, edge_weight, z)
-        emb = self.Pool(emb, subG_node, self.pools[id])
-        return self.preds[id](emb)
+        emb = self.Pool(emb, subG_node, self.pools[id_var])
+        return self.preds[id_var](emb)
 
 
 # models used for producing node embeddings.
@@ -360,10 +366,11 @@ class GLASS(nn.Module):
 
 class MyGCNConv(torch.nn.Module):
     '''
-    A kind of message passing layer we use for pretrained GNNs.
+    A kind of message passing layer we_var use for pretrained GNNs.
     Args:
         aggr: the aggregation method.
     '''
+
     def __init__(self,
                  in_channels: int,
                  out_channels: int,
@@ -375,12 +382,12 @@ class MyGCNConv(torch.nn.Module):
         self.adj = torch.sparse_coo_tensor(size=(0, 0))
         self.activation = activation
         self.aggr = aggr
-        self.gn = GraphNorm(out_channels)
+        self.gn_var = GraphNorm(out_channels)
 
     def reset_parameters(self):
         self.trans_fn.reset_parameters()
         self.comb_fn.reset_parameters()
-        self.gn.reset_parameters()
+        self.gn_var.reset_parameters()
 
     def forward(self, x_, edge_index, edge_weight):
         if self.adj.shape[0] == 0:
@@ -389,7 +396,7 @@ class MyGCNConv(torch.nn.Module):
         x = self.trans_fn(x_)
         x = self.activation(x)
         x = self.adj @ x
-        x = self.gn(x)
+        x = self.gn_var(x)
         x = torch.cat((x, x_), dim=-1)
         x = self.comb_fn(x)
         return x
@@ -400,10 +407,11 @@ class EmbGConv(torch.nn.Module):
     combination of some message passing layers, normalization layers, dropout layers, and activation function.
     Args:
         max_deg: the max integer in input node features.
-        conv: the message passing layer we use.
-        gn: whether to use GraphNorm.
-        jk: whether to use Jumping Knowledge Network.
+        conv: the message passing layer we_var use.
+        gn_var: whether to use GraphNorm.
+        jk_var: whether to use Jumping Knowledge Network.
     '''
+
     def __init__(self,
                  input_channels: int,
                  hidden_channels: int,
@@ -413,13 +421,13 @@ class EmbGConv(torch.nn.Module):
                  dropout=0,
                  activation=nn.ReLU(inplace=True),
                  conv=GCNConv,
-                 gn=True,
-                 jk=False,
+                 gn_var=True,
+                 jk_var=False,
                  **kwargs):
         super().__init__()
         self.input_emb = nn.Embedding(max_deg + 1, hidden_channels)
         self.convs = nn.ModuleList()
-        self.jk = jk
+        self.jk_var = jk_var
         if num_layers > 1:
             self.convs.append(
                 conv(in_channels=input_channels,
@@ -441,7 +449,7 @@ class EmbGConv(torch.nn.Module):
                      **kwargs))
         self.activation = activation
         self.dropout = dropout
-        if gn:
+        if gn_var:
             self.gns = nn.ModuleList()
             for _ in range(num_layers - 1):
                 self.gns.append(GraphNorm(hidden_channels))
@@ -453,11 +461,11 @@ class EmbGConv(torch.nn.Module):
         for conv in self.convs:
             conv.reset_parameters()
         if not (self.gns is None):
-            for gn in self.gns:
-                gn.reset_parameters()
+            for gn_var in self.gns:
+                gn_var.reset_parameters()
 
     def forward(self, x, edge_index, edge_weight, z=None):
-        xs = []
+        xs_var = []
         x = F.dropout(self.input_emb(x.reshape(-1)),
                       p=self.dropout,
                       training=self.training)
@@ -465,23 +473,24 @@ class EmbGConv(torch.nn.Module):
             x = conv(x, edge_index, edge_weight)
             if not (self.gns is None):
                 x = self.gns[layer](x)
-            xs.append(x)
+            xs_var.append(x)
             x = self.activation(x)
             x = F.dropout(x, p=self.dropout, training=self.training)
-        xs.append(self.convs[-1](x, edge_index, edge_weight))
-        if self.jk:
-            return torch.cat(xs, dim=-1)
+        xs_var.append(self.convs[-1](x, edge_index, edge_weight))
+        if self.jk_var:
+            return torch.cat(xs_var, dim=-1)
         else:
-            return xs[-1]
+            return xs_var[-1]
 
 
 class EdgeGNN(nn.Module):
     '''
-    EdgeGNN model: combine message passing layers and mlps and pooling layers to do link prediction task.
+    EdgeGNN model: combine message passing layers and mlps and pooling layers to do_var link prediction task.
     Args:
         preds and pools are ModuleList containing the same number of MLPs and Pooling layers.
-        preds[id] and pools[id] is used to predict the id-th target. Can be used for SSL.
+        preds[id_var] and pools[id_var] is used to predict the id_var-th target. Can be_var used for SSL.
     '''
+
     def __init__(self, conv, preds: nn.ModuleList, pools: nn.ModuleList):
         super().__init__()
         self.conv = conv
@@ -503,7 +512,7 @@ class EdgeGNN(nn.Module):
         emb = torch.mean(emb, dim=1)
         return emb
 
-    def forward(self, x, edge_index, edge_weight, subG_node, z=None, id=0):
+    def forward(self, x, edge_index, edge_weight, subG_node, z=None, id_var=0):
         emb = self.NodeEmb(x, edge_index, edge_weight, z)
-        emb = self.Pool(emb, subG_node, self.pools[id])
-        return self.preds[id](emb)
+        emb = self.Pool(emb, subG_node, self.pools[id_var])
+        return self.preds[id_var](emb)

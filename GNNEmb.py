@@ -12,7 +12,7 @@ import numpy as np
 parser = argparse.ArgumentParser(description='')
 # Dataset settings
 parser.add_argument('--dataset', type=str, default='ppi_bp')
-# Node feature settings. 
+# Node feature settings.
 # deg means use node degree. one means use homogeneous embeddings.
 # nodeid means use pretrained node embeddings in ./Emb
 parser.add_argument('--use_deg', action='store_true')
@@ -55,43 +55,43 @@ def split():
         raise NotImplementedError
     max_deg = torch.max(baseG.x)
     baseG.to(config.device)
-    x, ei, ea, pos, y = baseG.get_LPdataset()
+    x, ei_var, ea_var, pos, y = baseG.get_LPdataset()
     idx = torch.randperm(pos.shape[0], device=pos.device)
     trn_len = int(0.95 * idx.shape[0])
     trn_idx = idx[:trn_len]
     val_idx = idx[trn_len:]
-    trn_dataset = SubGDataset.GDataset(x, ei, ea, pos[trn_idx], y[trn_idx])
-    val_dataset = SubGDataset.GDataset(x, ei, ea, pos[val_idx], y[val_idx])
+    trn_dataset = SubGDataset.GDataset(x, ei_var, ea_var, pos[trn_idx], y[trn_idx])
+    val_dataset = SubGDataset.GDataset(x, ei_var, ea_var, pos[val_idx], y[val_idx])
 
-    def loader_fn(ds, bs):
-        return SubGDataset.GDataloader(ds, bs)
+    def loader_fn(ds_var, bs_var):
+        return SubGDataset.GDataloader(ds_var, bs_var)
 
-    def tloader_fn(ds, bs):
-        return SubGDataset.GDataloader(ds, bs, shuffle=False)
+    def tloader_fn(ds_var, bs_var):
+        return SubGDataset.GDataloader(ds_var, bs_var, shuffle=False)
 
 
 split()
 
 
-def buildModel(hidden_dim, conv_layer, dropout, jk):
+def buildModel(hidden_dim, conv_layer, dropout, jk_var):
     '''
     Build a EdgeGNN model.
     Args:
-        jk: whether to use Jumping Knowledge Network.
+        jk_var: whether to use Jumping Knowledge Network.
         conv_layer: number of GLASSConv.
     '''
-    tmp2 = hidden_dim * (conv_layer) if jk else hidden_dim
+    tmp2 = hidden_dim * (conv_layer) if jk_var else hidden_dim
     conv = models.EmbGConv(hidden_dim,
                            hidden_dim,
                            hidden_dim,
                            conv_layer,
                            max_deg=max_deg,
                            activation=nn.ReLU(inplace=True),
-                           jk=jk,
+                           jk_var=jk_var,
                            dropout=dropout,
                            conv=functools.partial(models.MyGCNConv,
                                                   aggr=args.aggr),
-                           gn=True)
+                           gn_var=True)
 
     edge_ssl = models.MLP(tmp2,
                           hidden_dim,
@@ -105,20 +105,20 @@ def buildModel(hidden_dim, conv_layer, dropout, jk):
     return gnn
 
 
-def work(hidden_dim, conv_layer, dropout, jk, lr, batch_size):
+def work(hidden_dim, conv_layer, dropout, jk_var, lr_var, batch_size):
     '''
     try a set of hyperparameters for pretrained GNN.
     '''
     trn_loader = loader_fn(trn_dataset, batch_size)
     val_loader = tloader_fn(val_dataset, val_dataset.y.shape[0])
     outs = []
-    loss_fn = lambda x, y: BCEWithLogitsLoss()(x.flatten(), y.flatten())
+    def loss_fn(x, y): return BCEWithLogitsLoss()(x.flatten(), y.flatten())
     for _ in range(args.repeat):
-        gnn = buildModel(hidden_dim, conv_layer, dropout, jk)
+        gnn = buildModel(hidden_dim, conv_layer, dropout, jk_var)
         with torch.no_grad():
             emb = gnn.NodeEmb(trn_dataset.x, trn_dataset.edge_index,
                               trn_dataset.edge_attr).detach().cpu()
-        optimizer = Adam(gnn.parameters(), lr=lr)
+        optimizer = Adam(gnn.parameters(), lr_var=lr_var)
         scd = lr_scheduler.ReduceLROnPlateau(optimizer,
                                              factor=0.7,
                                              min_lr=5e-5,
@@ -128,7 +128,7 @@ def work(hidden_dim, conv_layer, dropout, jk, lr, batch_size):
         for i in range(100):  # 400
             gnn.train()
             losss = []
-            for ib, batch in enumerate(trn_loader):
+            for ib_var, batch in enumerate(trn_loader):
                 optimizer.zero_grad()
                 emb = gnn.NodeEmb(trn_dataset.x, trn_dataset.edge_index,
                                   trn_dataset.edge_attr)
@@ -139,10 +139,11 @@ def work(hidden_dim, conv_layer, dropout, jk, lr, batch_size):
                 scd.step(loss)
                 losss.append(loss.item())
                 optimizer.step()
-                if ib >= 9:
+                if ib_var >= 9:
                     break
             if i % 5 == 0:
-                score, _ = train.test(gnn, val_loader, metrics.binaryf1, loss_fn)
+                score, _ = train.test(
+                    gnn, val_loader, metrics.binaryf1, loss_fn)
                 print(f"iter {i} loss {np.average(losss)} score {score}",
                       flush=True)
                 early_stop += 1
@@ -177,11 +178,11 @@ def obj(trial):
     conv_layer = trial.suggest_int('conv_layer', 2, 5, step=1)
     dropout = trial.suggest_float('dropout', 0.0, 0.5, step=0.1)
     args.aggr = trial.suggest_categorical("aggr", ["sum", "mean", "gcn"])
-    jk = 0
-    lr = 1e-3
+    jk_var = 0
+    lr_var = 1e-3
     batch_size = 131072
-    jk = (jk == 1)
-    score, emb = work(hidden_dim, conv_layer, dropout, jk, lr, batch_size)
+    jk_var = (jk_var == 1)
+    score, emb = work(hidden_dim, conv_layer, dropout, jk_var, lr_var, batch_size)
     # save best embeddings
     if score > best_score:
         torch.save(emb, f"{args.path}{args.name}_{hidden_dim}.pt")
@@ -193,7 +194,7 @@ print(args)
 # tuning hyperparameters of pretrained GNNs.
 study = optuna.create_study(direction="maximize",
                             storage="sqlite:///" + args.path + args.name +
-                            ".db",
+                            ".db_var",
                             study_name=args.name,
                             load_if_exists=True)
 study.optimize(obj, n_trials=args.optruns)

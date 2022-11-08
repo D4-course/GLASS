@@ -14,7 +14,7 @@ import yaml
 parser = argparse.ArgumentParser(description='')
 # Dataset settings
 parser.add_argument('--dataset', type=str, default='ppi_bp')
-# Node feature settings. 
+# Node feature settings.
 # deg means use node degree. one means use homogeneous embeddings.
 # nodeid means use pretrained node embeddings in ./Emb
 parser.add_argument('--use_deg', action='store_true')
@@ -100,35 +100,35 @@ def split():
     # choice of dataloader
     if args.use_maxzeroone:
 
-        def tfunc(ds, bs, shuffle=True, drop_last=True):
-            return SubGDataset.ZGDataloader(ds,
-                                            bs,
+        def tfunc(ds_var, bs_var, shuffle=True, drop_last=True):
+            return SubGDataset.ZGDataloader(ds_var,
+                                            bs_var,
                                             z_fn=utils.MaxZOZ,
                                             shuffle=shuffle,
                                             drop_last=drop_last)
 
-        def loader_fn(ds, bs):
-            return tfunc(ds, bs)
+        def loader_fn(ds_var, bs_var):
+            return tfunc(ds_var, bs_var)
 
-        def tloader_fn(ds, bs):
-            return tfunc(ds, bs, True, False)
+        def tloader_fn(ds_var, bs_var):
+            return tfunc(ds_var, bs_var, True, False)
     else:
 
-        def loader_fn(ds, bs):
-            return SubGDataset.GDataloader(ds, bs)
+        def loader_fn(ds_var, bs_var):
+            return SubGDataset.GDataloader(ds_var, bs_var)
 
-        def tloader_fn(ds, bs):
-            return SubGDataset.GDataloader(ds, bs, shuffle=True)
+        def tloader_fn(ds_var, bs_var):
+            return SubGDataset.GDataloader(ds_var, bs_var, shuffle=True)
 
 
-def buildModel(hidden_dim, conv_layer, dropout, jk, pool, z_ratio, aggr):
+def buildModel(hidden_dim, conv_layer, dropout, jk_var, pool, z_ratio, aggr):
     '''
     Build a GLASS model.
     Args:
-        jk: whether to use Jumping Knowledge Network.
+        jk_var: whether to use Jumping Knowledge Network.
         conv_layer: number of GLASSConv.
         pool: pooling function transfer node embeddings to subgraph embeddings.
-        z_ratio: see GLASSConv in impl/model.py. Z_ratio in [0.5, 1].
+        z_ratio: see GLASSConv in impl/model.py_var. Z_ratio in [0.5, 1].
         aggr: aggregation method. mean, sum, or gcn. 
     '''
     conv = models.EmbZGConv(hidden_dim,
@@ -136,13 +136,13 @@ def buildModel(hidden_dim, conv_layer, dropout, jk, pool, z_ratio, aggr):
                             conv_layer,
                             max_deg=max_deg,
                             activation=nn.ELU(inplace=True),
-                            jk=jk,
+                            jk_var=jk_var,
                             dropout=dropout,
                             conv=functools.partial(models.GLASSConv,
                                                    aggr=aggr,
                                                    z_ratio=z_ratio,
                                                    dropout=dropout),
-                            gn=True)
+                            gn_var=True)
 
     # use pretrained node embeddings.
     if args.use_nodeid:
@@ -151,7 +151,7 @@ def buildModel(hidden_dim, conv_layer, dropout, jk, pool, z_ratio, aggr):
                          map_location=torch.device('cpu')).detach()
         conv.input_emb = nn.Embedding.from_pretrained(emb, freeze=False)
 
-    mlp = nn.Linear(hidden_dim * (conv_layer) if jk else hidden_dim,
+    mlp = nn.Linear(hidden_dim * (conv_layer) if jk_var else hidden_dim,
                     output_channels)
 
     pool_fn_fn = {
@@ -175,23 +175,23 @@ def test(pool="size",
          hidden_dim=64,
          conv_layer=8,
          dropout=0.3,
-         jk=1,
-         lr=1e-3,
+         jk_var=1,
+         lr_var=1e-3,
          z_ratio=0.8,
          batch_size=None,
          resi=0.7):
     '''
     Test a set of hyperparameters in a task.
     Args:
-        jk: whether to use Jumping Knowledge Network.
-        z_ratio: see GLASSConv in impl/model.py. A hyperparameter of GLASS.
-        resi: the lr reduce factor of ReduceLROnPlateau.
+        jk_var: whether to use Jumping Knowledge Network.
+        z_ratio: see GLASSConv in impl/model.py_var. A hyperparameter of GLASS.
+        resi: the lr_var reduce factor of ReduceLROnPlateau.
     '''
     outs = []
-    t1 = time.time()
-    # we set batch_size = tst_dataset.y.shape[0] // num_div.
+    t1_var = time.time()
+    # we_var set batch_size = tst_dataset.y.shape[0] // num_div.
     num_div = tst_dataset.y.shape[0] / batch_size
-    # we use num_div to calculate the number of iteration per epoch and count the number of iteration.
+    # we_var use num_div to calculate the number of iteration per epoch and count the number of iteration.
     if args.dataset in ["density", "component", "cut_ratio", "coreness"]:
         num_div /= 5
 
@@ -199,12 +199,12 @@ def test(pool="size",
     for repeat in range(args.repeat):
         set_seed((1 << repeat) - 1)
         print(f"repeat {repeat}")
-        gnn = buildModel(hidden_dim, conv_layer, dropout, jk, pool, z_ratio,
+        gnn = buildModel(hidden_dim, conv_layer, dropout, jk_var, pool, z_ratio,
                          aggr)
         trn_loader = loader_fn(trn_dataset, batch_size)
         val_loader = tloader_fn(val_dataset, batch_size)
         tst_loader = tloader_fn(tst_dataset, batch_size)
-        optimizer = Adam(gnn.parameters(), lr=lr)
+        optimizer = Adam(gnn.parameters(), lr_var=lr_var)
         scd = lr_scheduler.ReduceLROnPlateau(optimizer,
                                              factor=resi,
                                              min_lr=5e-5)
@@ -213,9 +213,9 @@ def test(pool="size",
         early_stop = 0
         trn_time = []
         for i in range(300):
-            t1 = time.time()
+            t1_var = time.time()
             loss = train.train(optimizer, gnn, trn_loader, loss_fn)
-            trn_time.append(time.time() - t1)
+            trn_time.append(time.time() - t1_var)
             scd.step(loss)
 
             if i >= 100 / num_div:

@@ -23,6 +23,7 @@ class GsDataset(InMemoryDataset):
     '''
     designed for GNN-seg.
     '''
+
     def __init__(self, datalist):
         self.datalist = datalist
         super(GsDataset, self).__init__()
@@ -42,6 +43,7 @@ class GsDataloader(pygDataloader):
     '''
     dataloader for GsDataset
     '''
+
     def __init__(self, Gsdataset, batch_size=64, shuffle=True, drop_last=True):
         super(GsDataloader, self).__init__(Gsdataset,
                                            batch_size=batch_size,
@@ -55,11 +57,11 @@ class GsDataloader(pygDataloader):
     def __next__(self):
         batch = next(self.iter)
         x = batch.x
-        ei = batch.edge_index
-        ea = batch.edge_attr
+        ei_var = batch.edge_index
+        ea_var = batch.edge_attr
         pos = utils.batch2pad(batch.batch)
         y = batch.y
-        return x, ei, ea, pos, y
+        return x, ei_var, ea_var, pos, y
 
 
 '''
@@ -107,20 +109,20 @@ class GConv(torch.nn.Module):
     def reset_parameters(self):
         for conv in self.convs:
             conv.reset_parameters()
-        for gn in self.gns:
-            gn.reset_parameters()
+        for gn_var in self.gns:
+            gn_var.reset_parameters()
 
     def forward(self, x, edge_index, edge_weight, z=None):
-        xs = []
+        xs_var = []
         for layer, conv in enumerate(self.convs[:-1]):
             x = conv(x, edge_index, edge_weight)
             if not (self.gns is None):
                 x = self.gns[layer](x)
-            xs.append(x)
+            xs_var.append(x)
             x = self.activation(x)
             x = F.dropout(x, p=self.dropout, training=self.training)
-        xs.append(self.convs[-1](x, edge_index, edge_weight))
-        return torch.cat(xs, dim=-1)
+        xs_var.append(self.convs[-1](x, edge_index, edge_weight))
+        return torch.cat(xs_var, dim=-1)
 
 
 class GNN(torch.nn.Module):
@@ -130,7 +132,7 @@ class GNN(torch.nn.Module):
         self.mods.append(conv)
         self.mods.append(pred)
 
-    def forward(self, x, edge_index, edge_weight, subG_node, id=0):
+    def forward(self, x, edge_index, edge_weight, subG_node, id_var=0):
         def pos2sp(pos, n_node: int):
             coord_2 = torch.arange(pos.shape[0]).reshape(
                 -1,
@@ -152,8 +154,8 @@ class GNN(torch.nn.Module):
             embs.append(emb.reshape(emb.shape[0], 1, emb.shape[-1]))
         emb = torch.cat(embs, dim=1)
         emb = torch.mean(emb, dim=1)
-        sp = pos2sp(subG_node, emb.shape[0])
-        emb = sp @ emb
+        sp_var = pos2sp(subG_node, emb.shape[0])
+        emb = sp_var @ emb
         emb = self.mods[1](emb)
         return emb
 
@@ -224,11 +226,11 @@ def split():
             print("empty", centre)
         return Data(x[node], edge, edge_attr[edge_mask], y=y, pos=npos)
 
-    def todatalist(gd, hop):
+    def todatalist(gd_var, hop):
         return [
-            todata(gd.x, gd.edge_index, gd.edge_attr,
-                   gd.pos[i][gd.pos[i] >= 0], hop, gd.y[i])
-            for i in range(len(gd))
+            todata(gd_var.x, gd_var.edge_index, gd_var.edge_attr,
+                   gd_var.pos[i][gd_var.pos[i] >= 0], hop, gd_var.y[i])
+            for i in range(len(gd_var))
         ]
 
     global trn_dataset, val_dataset, tst_dataset, loader_fn, tloader_fn, input_channels
@@ -248,14 +250,14 @@ def split():
     val_dataset = GsDataset(todatalist(val_dataset, 0))
     tst_dataset = GsDataset(todatalist(tst_dataset, 0))
 
-    def tfunc(ds, bs, shuffle=True, drop_last=True):
-        return GsDataloader(ds, bs, shuffle=shuffle, drop_last=drop_last)
+    def tfunc(ds_var, bs_var, shuffle=True, drop_last=True):
+        return GsDataloader(ds_var, bs_var, shuffle=shuffle, drop_last=drop_last)
 
-    def loader_fn(ds, bs):
-        return tfunc(ds, bs)
+    def loader_fn(ds_var, bs_var):
+        return tfunc(ds_var, bs_var)
 
-    def tloader_fn(ds, bs):
-        return tfunc(ds, bs, False, False)
+    def tloader_fn(ds_var, bs_var):
+        return tfunc(ds_var, bs_var, False, False)
 
 
 def buildModel(hidden_dim, conv_layer, dropout):
@@ -280,13 +282,13 @@ def buildModel(hidden_dim, conv_layer, dropout):
     return gnn
 
 
-def test(hidden_dim=64, conv_layer=8, dropout=0.3, lr=1e-3, batch_size=160):
+def test(hidden_dim=64, conv_layer=8, dropout=0.3, lr_var=1e-3, batch_size=160):
     def set_seed(seed: int):
         print("seed ", seed)
         np.random.seed(seed)
         torch.manual_seed(seed)
         torch.cuda.manual_seed(seed)
-        torch.cuda.manual_seed_all(seed)  
+        torch.cuda.manual_seed_all(seed)
     trn_loader = loader_fn(trn_dataset, batch_size)
     val_loader = tloader_fn(val_dataset, batch_size)
     tst_loader = tloader_fn(tst_dataset, batch_size)
@@ -295,7 +297,7 @@ def test(hidden_dim=64, conv_layer=8, dropout=0.3, lr=1e-3, batch_size=160):
         print(f"repeat {_}")
         set_seed(_)
         gnn = buildModel(hidden_dim, conv_layer, dropout)
-        optimizer = Adam(gnn.parameters(), lr=lr)
+        optimizer = Adam(gnn.parameters(), lr_var=lr_var)
         scd = lr_scheduler.ReduceLROnPlateau(optimizer,
                                              factor=0.7,
                                              min_lr=5e-5)
