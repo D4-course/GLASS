@@ -24,6 +24,7 @@ RUN apt install python3.9 -y
 RUN pip install torch-scatter torch-sparse torch-cluster torch-spline-conv torch-geometric==1.7.2 -f https://data.pyg.org/whl/torch-1.12.0+cu113.html
 RUN pip install pytest
 RUN pip install optuna
+RUN pip install pyyaml
 # RUN pip install *.whl
 # COPY requirements.txt .
 # RUN cat requirements.txt 
