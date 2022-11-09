@@ -24,7 +24,7 @@ parser.add_argument('--repeat', type=int, default=1)
 parser.add_argument('--test', action='store_true')
 parser.add_argument('--abl', action='store_true')
 
-parser.add_argument('--optruns', type=int, default=100)
+parser.add_argument('--optruns', type=int, default=1)
 parser.add_argument('--path', type=str, default="Emb/")
 parser.add_argument('--name', type=str, default="opt")
 parser.add_argument('--device', type=int, default=0)
@@ -118,7 +118,7 @@ def work(hidden_dim, conv_layer, dropout, jk_var, lr_var, batch_size):
         with torch.no_grad():
             emb = gnn.NodeEmb(trn_dataset.x, trn_dataset.edge_index,
                               trn_dataset.edge_attr).detach().cpu()
-        optimizer = Adam(gnn.parameters(), lr_var=lr_var)
+        optimizer = Adam(gnn.parameters(), lr=lr_var)
         scd = lr_scheduler.ReduceLROnPlateau(optimizer,
                                              factor=0.7,
                                              min_lr=5e-5,

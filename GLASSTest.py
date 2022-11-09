@@ -204,7 +204,7 @@ def test(pool="size",
         trn_loader = loader_fn(trn_dataset, batch_size)
         val_loader = tloader_fn(val_dataset, batch_size)
         tst_loader = tloader_fn(tst_dataset, batch_size)
-        optimizer = Adam(gnn.parameters(), lr_var=lr_var)
+        optimizer = Adam(gnn.parameters(), lr=lr_var)
         scd = lr_scheduler.ReduceLROnPlateau(optimizer,
                                              factor=resi,
                                              min_lr=5e-5)
