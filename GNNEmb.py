@@ -91,7 +91,7 @@ def buildModel(hidden_dim, conv_layer, dropout, jk_var):
                            dropout=dropout,
                            conv=functools.partial(models.MyGCNConv,
                                                   aggr=args.aggr),
-                           gn_var=True)
+                           gn=True)
 
     edge_ssl = models.MLP(tmp2,
                           hidden_dim,

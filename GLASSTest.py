@@ -10,6 +10,7 @@ import numpy as np
 import time
 import random
 import yaml
+import sys
 
 parser = argparse.ArgumentParser(description='')
 # Dataset settings
@@ -142,7 +143,7 @@ def buildModel(hidden_dim, conv_layer, dropout, jk_var, pool, z_ratio, aggr):
                                                    aggr=aggr,
                                                    z_ratio=z_ratio,
                                                    dropout=dropout),
-                            gn_var=True)
+                            gn=True)
 
     # use pretrained node embeddings.
     if args.use_nodeid:
@@ -271,3 +272,5 @@ with open(f"config/{args.dataset}.yml") as f:
 print("params", params, flush=True)
 split()
 test(**(params))
+
+#print(sys.path)

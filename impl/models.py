@@ -31,7 +31,7 @@ class MLP(nn.Module):
     Args:
         tail_activation: whether to use activation function at_var the last layer.
         activation: activation function.
-        gn_var: whether to use GraphNorm layer.
+        gn: whether to use GraphNorm layer.
     '''
 
     def __init__(self,
@@ -42,14 +42,14 @@ class MLP(nn.Module):
                  dropout=0,
                  tail_activation=False,
                  activation=nn.ReLU(inplace=True),
-                 gn_var=False):
+                 gn=False):
         super().__init__()
         modlist = []
         self.seq = None
         if num_layers == 1:
             modlist.append(nn.Linear(input_channels, output_channels))
             if tail_activation:
-                if gn_var:
+                if gn:
                     modlist.append(GraphNorm(output_channels))
                 if dropout > 0:
                     modlist.append(nn.Dropout(p=dropout, inplace=True))
@@ -58,20 +58,20 @@ class MLP(nn.Module):
         else:
             modlist.append(nn.Linear(input_channels, hidden_channels))
             for _ in range(num_layers - 2):
-                if gn_var:
+                if gn:
                     modlist.append(GraphNorm(hidden_channels))
                 if dropout > 0:
                     modlist.append(nn.Dropout(p=dropout, inplace=True))
                 modlist.append(activation)
                 modlist.append(nn.Linear(hidden_channels, hidden_channels))
-            if gn_var:
+            if gn:
                 modlist.append(GraphNorm(hidden_channels))
             if dropout > 0:
                 modlist.append(nn.Dropout(p=dropout, inplace=True))
             modlist.append(activation)
             modlist.append(nn.Linear(hidden_channels, output_channels))
             if tail_activation:
-                if gn_var:
+                if gn:
                     modlist.append(GraphNorm(output_channels))
                 if dropout > 0:
                     modlist.append(nn.Dropout(p=dropout, inplace=True))
@@ -141,7 +141,7 @@ class GLASSConv(torch.nn.Module):
         self.adj = torch.sparse_coo_tensor(size=(0, 0))
         self.activation = activation
         self.aggr = aggr
-        self.gn_var = GraphNorm(out_channels)
+        self.gn = GraphNorm(out_channels)
         self.z_ratio = z_ratio
         self.reset_parameters()
         self.dropout = dropout
@@ -151,7 +151,7 @@ class GLASSConv(torch.nn.Module):
             _.reset_parameters()
         for _ in self.comb_fns:
             _.reset_parameters()
-        self.gn_var.reset_parameters()
+        self.gn.reset_parameters()
 
     def forward(self, x_, edge_index, edge_weight, mask):
         if self.adj.shape[0] == 0:
@@ -165,7 +165,7 @@ class GLASSConv(torch.nn.Module):
                         self.z_ratio * x0 + (1 - self.z_ratio) * x1)
         # pass messages.
         x = self.adj @ x
-        x = self.gn_var(x)
+        x = self.gn(x)
         x = F.dropout(x, p=self.dropout, training=self.training)
         x = torch.cat((x, x_), dim=-1)
         # transform node features with different parameters individually.
@@ -183,7 +183,7 @@ class EmbZGConv(nn.Module):
     Args:
         max_deg: the max integer in input node features.
         conv: the message passing layer we_var use.
-        gn_var: whether to use GraphNorm.
+        gn: whether to use GraphNorm.
         jk_var: whether to use Jumping Knowledge Network.
     '''
 
@@ -195,7 +195,7 @@ class EmbZGConv(nn.Module):
                  dropout=0,
                  activation=nn.ReLU(),
                  conv=GLASSConv,
-                 gn_var=True,
+                 gn=True,
                  jk_var=False,
                  **kwargs):
         super().__init__()
@@ -218,7 +218,7 @@ class EmbZGConv(nn.Module):
                  **kwargs))
         self.activation = activation
         self.dropout = dropout
-        if gn_var:
+        if gn:
             self.gns = nn.ModuleList()
             for _ in range(num_layers - 1):
                 self.gns.append(GraphNorm(hidden_channels))
@@ -238,8 +238,8 @@ class EmbZGConv(nn.Module):
         for conv in self.convs:
             conv.reset_parameters()
         if not (self.gns is None):
-            for gn_var in self.gns:
-                gn_var.reset_parameters()
+            for gn in self.gns:
+                gn.reset_parameters()
 
     def forward(self, x, edge_index, edge_weight, z=None):
         # z is the node label.
@@ -382,12 +382,12 @@ class MyGCNConv(torch.nn.Module):
         self.adj = torch.sparse_coo_tensor(size=(0, 0))
         self.activation = activation
         self.aggr = aggr
-        self.gn_var = GraphNorm(out_channels)
+        self.gn = GraphNorm(out_channels)
 
     def reset_parameters(self):
         self.trans_fn.reset_parameters()
         self.comb_fn.reset_parameters()
-        self.gn_var.reset_parameters()
+        self.gn.reset_parameters()
 
     def forward(self, x_, edge_index, edge_weight):
         if self.adj.shape[0] == 0:
@@ -396,7 +396,7 @@ class MyGCNConv(torch.nn.Module):
         x = self.trans_fn(x_)
         x = self.activation(x)
         x = self.adj @ x
-        x = self.gn_var(x)
+        x = self.gn(x)
         x = torch.cat((x, x_), dim=-1)
         x = self.comb_fn(x)
         return x
@@ -408,7 +408,7 @@ class EmbGConv(torch.nn.Module):
     Args:
         max_deg: the max integer in input node features.
         conv: the message passing layer we_var use.
-        gn_var: whether to use GraphNorm.
+        gn: whether to use GraphNorm.
         jk_var: whether to use Jumping Knowledge Network.
     '''
 
@@ -421,7 +421,7 @@ class EmbGConv(torch.nn.Module):
                  dropout=0,
                  activation=nn.ReLU(inplace=True),
                  conv=GCNConv,
-                 gn_var=True,
+                 gn=True,
                  jk_var=False,
                  **kwargs):
         super().__init__()
@@ -449,7 +449,7 @@ class EmbGConv(torch.nn.Module):
                      **kwargs))
         self.activation = activation
         self.dropout = dropout
-        if gn_var:
+        if gn:
             self.gns = nn.ModuleList()
             for _ in range(num_layers - 1):
                 self.gns.append(GraphNorm(hidden_channels))
@@ -461,8 +461,8 @@ class EmbGConv(torch.nn.Module):
         for conv in self.convs:
             conv.reset_parameters()
         if not (self.gns is None):
-            for gn_var in self.gns:
-                gn_var.reset_parameters()
+            for gn in self.gns:
+                gn.reset_parameters()
 
     def forward(self, x, edge_index, edge_weight, z=None):
         xs_var = []

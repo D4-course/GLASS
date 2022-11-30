@@ -109,8 +109,8 @@ class GConv(torch.nn.Module):
     def reset_parameters(self):
         for conv in self.convs:
             conv.reset_parameters()
-        for gn_var in self.gns:
-            gn_var.reset_parameters()
+        for gn in self.gns:
+            gn.reset_parameters()
 
     def forward(self, x, edge_index, edge_weight, z=None):
         xs_var = []
