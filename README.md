@@ -1,3 +1,4 @@
+Team Number - 5; Roll numbers - 2020121007, 2020121010
 # GLASS: GNN with Labeling Tricks for Subgraph Representation Learning
 
 ## NOTE - Please refer to the HDD for the a high level overview of the repository 
